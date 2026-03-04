@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@media print {
+  aside, header, .no-print, button, select, label {
+    display: none !important;
+  }
+  
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+  }
+
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+  }
+
+  .bg-white {
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .rounded-3xl {
+    border-radius: 0 !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
