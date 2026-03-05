@@ -71,26 +71,53 @@ app.get("/api/jamaah/:id", async (req, res) => {
   }
 });
 
-// Create jamaah
+// Create jamaah and document
 app.post("/api/jamaah", async (req, res) => {
-  const { nomor, nomor_porsi, nama, nama_ayah, alamat, phone, tanggal_daftar, foto } = req.body;
+  const { nomor, nomor_porsi, nama, nama_ayah, alamat, phone, tanggal_daftar, foto, type, document_url } = req.body;
   
   try {
-    const { data, error } = await supabase
+    // 1. Upsert Jamaah (based on nomor_porsi or nama+nama_ayah)
+    // We use upsert so if the jamaah already exists, we just get their ID
+    const { data: jamaahData, error: jamaahError } = await supabase
       .from('jamaah')
+      .upsert({ 
+        nomor_porsi, 
+        nama, 
+        nama_ayah, 
+        alamat, 
+        phone, 
+        tanggal_daftar, 
+        foto,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'nomor_porsi' })
+      .select();
+
+    if (jamaahError) throw jamaahError;
+    const jamaahId = jamaahData[0].id;
+
+    // 2. Save to Dokumen table
+    const { data: docData, error: docError } = await supabase
+      .from('dokumen')
       .insert([
-        { nomor, nomor_porsi, nama, nama_ayah, alamat, phone, tanggal_daftar, foto }
+        { 
+          jamaah_id: jamaahId,
+          type,
+          nomor_dokumen: nomor,
+          file_url: document_url,
+          extracted_data: req.body // Store full extracted data for reference
+        }
       ])
       .select();
 
-    if (error) {
-      if (error.code === '23505') { // Unique constraint violation in Postgres
-        return res.status(400).json({ error: "Nomor porsi sudah terdaftar" });
-      }
-      throw error;
+    if (docError) {
+      console.warn("Gagal menyimpan ke tabel dokumen, pastikan tabel 'dokumen' sudah dibuat:", docError.message);
+      // We don't throw here to allow the jamaah save to succeed even if dokumen table is missing
     }
     
-    res.status(201).json({ id: data[0].id });
+    res.status(201).json({ 
+      id: jamaahId, 
+      document_id: docData ? docData[0].id : null 
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
