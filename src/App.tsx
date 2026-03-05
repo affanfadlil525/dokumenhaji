@@ -86,6 +86,7 @@ interface HajiRecord {
   tanggalDaftar: string;
   photoUrl: string;
   documentUrl: string;
+  fullDocumentBase64?: string;
   isAutoCropped?: boolean;
   mimeType: string;
   timestamp: number;
@@ -164,7 +165,9 @@ export default function App() {
           alamat: record.alamat,
           phone: record.phone,
           tanggal_daftar: record.tanggalDaftar,
-          foto: record.photoUrl
+          foto: record.photoUrl,
+          type: record.type,
+          document_url: record.fullDocumentBase64 // Send the full document base64
         })
       });
       
@@ -227,13 +230,17 @@ export default function App() {
               },
             },
             {
-              text: `Analisis dokumen haji ini (${selectedType}):
+              text: `Analisis dokumen haji ini (${selectedType}) dengan sangat teliti:
               1. Ekstrak data teks berikut dalam format JSON: nomor, nomorPorsi, nama, namaAyah, alamat, phone, tanggalDaftar (format YYYY-MM-DD).
-              2. TEMUKAN PAS FOTO (foto wajah) jamaah di dalam dokumen. Berikan koordinat kotak pembatas (bounding box) yang mengelilingi wajah tersebut.
-              3. Koordinat harus dalam format [ymin, xmin, ymax, xmax] dengan skala 0-1000. Gunakan key "face_box".
-              4. Jika memungkinkan, kembalikan potongan wajah tersebut sebagai BAGIAN GAMBAR (inlineData).
+              2. CARI PAS FOTO (foto wajah/setengah badan) jamaah yang biasanya tertempel atau tercetak di dokumen ini.
+              3. Berikan koordinat kotak pembatas (bounding box) yang SANGAT AKURAT mengelilingi FOTO tersebut (bukan seluruh dokumen, tapi hanya area fotonya saja).
+              4. Koordinat harus dalam format [ymin, xmin, ymax, xmax] dengan skala 0-1000. Gunakan key "face_box".
+              5. Jika Anda melihat area foto yang jelas, berikan potongan foto tersebut sebagai BAGIAN GAMBAR (inlineData).
               
-              PENTING: Pastikan koordinat "face_box" benar-benar pas di area foto wajah. Jika tidak ada foto wajah yang jelas, jangan sertakan key "face_box".`,
+              PENTING: 
+              - Pastikan koordinat "face_box" benar-benar hanya mencakup area foto jamaah.
+              - Jika ada beberapa foto, pilih yang paling jelas (biasanya pas foto resmi).
+              - Jika tidak ada foto wajah yang terdeteksi, jangan sertakan key "face_box".`,
             },
           ],
         },
@@ -282,6 +289,7 @@ export default function App() {
         ...extractedData,
         photoUrl: extractedPhotoUrl,
         documentUrl: documentUrl,
+        fullDocumentBase64: `data:${file.type};base64,${base64Data}`,
         mimeType: file.type,
         timestamp: Date.now(),
         type: selectedType,
