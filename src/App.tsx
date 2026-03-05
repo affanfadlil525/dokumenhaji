@@ -92,7 +92,7 @@ interface HajiRecord {
 }
 
 // --- Constants ---
-const GENAI_MODEL = "gemini-2.5-flash-image";
+const GENAI_MODEL = "gemini-3-flash-preview";
 
 // --- Components ---
 
@@ -264,7 +264,37 @@ export default function App() {
 
       setScanResult(result);
     } catch (err: any) {
-      setError(err.message);
+      console.error("Scan error:", err);
+      let errorMessage = err.message || "Terjadi kesalahan saat memproses dokumen.";
+      let retryAfter = "";
+      
+      // Try to parse if it's a JSON string (often returned by Gemini SDK)
+      try {
+        if (typeof errorMessage === 'string' && errorMessage.trim().startsWith('{')) {
+          const parsed = JSON.parse(errorMessage);
+          if (parsed.error) {
+            if (parsed.error.message) {
+              errorMessage = parsed.error.message;
+            }
+            // Check for retry delay in details
+            const retryInfo = parsed.error.details?.find((d: any) => d['@type']?.includes('RetryInfo'));
+            if (retryInfo?.retryDelay) {
+              retryAfter = retryInfo.retryDelay;
+            }
+          }
+        }
+      } catch (e) {
+        // Not JSON, keep original
+      }
+
+      if (errorMessage.includes('429') || errorMessage.includes('Quota exceeded') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+        const waitMsg = retryAfter ? ` Silakan coba lagi dalam ${retryAfter}.` : " Mohon tunggu sekitar 1 menit sebelum mencoba lagi.";
+        setError(`Batas penggunaan (Quota) API Gemini telah tercapai.${waitMsg} Ini adalah batasan dari layanan gratis Google Gemini.`);
+      } else if (errorMessage.includes('API_KEY_INVALID')) {
+        setError("API Key tidak valid. Periksa kembali konfigurasi GEMINI_API_KEY Anda.");
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsScanning(false);
     }
