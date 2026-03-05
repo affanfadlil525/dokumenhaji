@@ -45,14 +45,14 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const cropImage = (imageUrl: string, box: number[]): Promise<string> => {
+const cropImage = (imageUrl: string, box: number[]): Promise<string | null> => {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      if (!ctx) return resolve(imageUrl);
+      if (!ctx) return resolve(null);
 
       // Gemini box format: [ymin, xmin, ymax, xmax] in 0-1000 scale
       const [ymin, xmin, ymax, xmax] = box;
@@ -61,12 +61,15 @@ const cropImage = (imageUrl: string, box: number[]): Promise<string> => {
       const width = ((xmax - xmin) / 1000) * img.width;
       const height = ((ymax - ymin) / 1000) * img.height;
 
+      // Safety check for dimensions
+      if (width <= 0 || height <= 0) return resolve(null);
+
       canvas.width = width;
       canvas.height = height;
       ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg'));
+      resolve(canvas.toDataURL('image/jpeg', 0.8)); // Use 0.8 quality to keep size reasonable
     };
-    img.onerror = () => resolve(imageUrl);
+    img.onerror = () => resolve(null);
     img.src = imageUrl;
   });
 };
@@ -273,13 +276,17 @@ export default function App() {
       if (!extractedPhotoUrl && extractedData.face_box && Array.isArray(extractedData.face_box)) {
         console.log("Attempting client-side crop with box:", extractedData.face_box);
         try {
-          extractedPhotoUrl = await cropImage(documentUrl, extractedData.face_box);
+          const cropped = await cropImage(documentUrl, extractedData.face_box);
+          if (cropped) {
+            extractedPhotoUrl = cropped;
+          }
         } catch (cropErr) {
           console.error("Auto-crop failed:", cropErr);
         }
       }
 
       // Fallback: if still no photo, use the original document as a fallback so it's not empty
+      // BUT make sure it's a base64, not a blob URL
       if (!extractedPhotoUrl) {
         console.warn("No photo extracted, using document as fallback");
         extractedPhotoUrl = `data:${file.type};base64,${base64Data}`; 
@@ -390,7 +397,7 @@ export default function App() {
         <div className="mt-auto p-6 border-t border-black/5 space-y-4">
           <div className="bg-emerald-900/5 rounded-2xl p-4">
             <p className="text-[11px] font-semibold text-emerald-800 uppercase mb-1">Status Kantor</p>
-            <p className="text-xs text-emerald-700/70">Kemenhaj Kutai Barat Aktif</p>
+            <p className="text-xs text-emerald-700/70">Kemenag Kutai Barat Aktif</p>
           </div>
           
           <button 
@@ -837,7 +844,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Simple hardcoded credentials for demo
-    if (username === 'admin' && password === 'kemenhajkubar') {
+    if (username === 'admin' && password === 'kemenagkubar') {
       onLogin();
     } else {
       setError('Username atau Password salah!');
@@ -857,7 +864,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
               <Lock size={40} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight mb-2">Akses Administrator</h1>
-            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>Kemenhaj Kabupaten Kutai Barat</p>
+            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>Kemenag Kabupaten Kutai Barat</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
@@ -913,7 +920,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
         </div>
         
         <div className="bg-zinc-50 p-6 text-center border-t border-black/5">
-          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • Kemenhaj Kab. Kutai Barat</p>
+          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • Kemenag RI</p>
         </div>
       </motion.div>
     </div>
