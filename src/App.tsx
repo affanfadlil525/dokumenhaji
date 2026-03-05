@@ -397,7 +397,7 @@ export default function App() {
         <div className="mt-auto p-6 border-t border-black/5 space-y-4">
           <div className="bg-emerald-900/5 rounded-2xl p-4">
             <p className="text-[11px] font-semibold text-emerald-800 uppercase mb-1">Status Kantor</p>
-            <p className="text-xs text-emerald-700/70">Kemenag Kutai Barat Aktif</p>
+            <p className="text-xs text-emerald-700/70">Kemenhaj Kutai Barat Aktif</p>
           </div>
           
           <button 
@@ -844,7 +844,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Simple hardcoded credentials for demo
-    if (username === 'admin' && password === 'kemenagkubar') {
+    if (username === 'admin' && password === 'kemenhajkubar') {
       onLogin();
     } else {
       setError('Username atau Password salah!');
@@ -864,7 +864,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
               <Lock size={40} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight mb-2">Akses Administrator</h1>
-            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>Kemenag Kabupaten Kutai Barat</p>
+            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>Kemenhaj Kabupaten Kutai Barat</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
@@ -920,7 +920,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
         </div>
         
         <div className="bg-zinc-50 p-6 text-center border-t border-black/5">
-          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • Kemenag RI</p>
+          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • Kemenhaj Kab. Kutai Barat</p>
         </div>
       </motion.div>
     </div>
