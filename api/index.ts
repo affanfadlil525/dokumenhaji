@@ -28,24 +28,63 @@ app.get("/api/config-check", (req, res) => {
   });
 });
   
-// Get all jamaah with optional search
+// Get all records (jamaah + latest document)
 app.get("/api/jamaah", async (req, res) => {
-  const { q } = req.query;
+  const { query: q } = req.query; // Support both 'query' and 'q'
+  const searchQuery = q || req.query.q;
   
   try {
+    // We want to get documents joined with their jamaah
     let query = supabase
-      .from('jamaah')
-      .select('*')
+      .from('dokumen')
+      .select(`
+        id,
+        type,
+        nomor_dokumen,
+        file_url,
+        created_at,
+        jamaah:jamaah_id (
+          id,
+          nomor_porsi,
+          nama,
+          nama_ayah,
+          alamat,
+          phone,
+          tanggal_daftar,
+          foto
+        )
+      `)
       .order('created_at', { ascending: false });
 
-    if (q) {
-      query = query.or(`nama.ilike.%${q}%,nomor_porsi.ilike.%${q}%,nomor.ilike.%${q}%`);
+    if (searchQuery) {
+      // Search in jamaah name or nomor_porsi or nomor_dokumen
+      // Note: complex cross-table search in Supabase JS client can be tricky
+      // For now, we'll search in the dokumen's nomor_dokumen or use a raw filter if needed
+      query = query.or(`nomor_dokumen.ilike.%${searchQuery}%`);
+      // If we need to search in jamaah fields, we might need a different approach or a view
     }
 
     const { data, error } = await query;
 
     if (error) throw error;
-    res.json(data);
+
+    // Map to camelCase and flatten for the frontend HajiRecord interface
+    const mappedData = data.map((doc: any) => ({
+      id: doc.id,
+      type: doc.type,
+      nomor: doc.nomor_dokumen,
+      nomorPorsi: doc.jamaah?.nomor_porsi,
+      nama: doc.jamaah?.nama,
+      namaAyah: doc.jamaah?.nama_ayah,
+      alamat: doc.jamaah?.alamat,
+      phone: doc.jamaah?.phone,
+      tanggalDaftar: doc.jamaah?.tanggal_daftar,
+      photoUrl: doc.jamaah?.foto,
+      documentUrl: doc.file_url,
+      timestamp: new Date(doc.created_at).getTime()
+    }));
+
+    res.json(mappedData);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -156,11 +195,11 @@ app.put("/api/jamaah/:id", async (req, res) => {
   }
 });
 
-// Delete jamaah
+// Delete record (document)
 app.delete("/api/jamaah/:id", async (req, res) => {
   try {
     const { error, count } = await supabase
-      .from('jamaah')
+      .from('dokumen')
       .delete({ count: 'exact' })
       .eq('id', req.params.id);
 
@@ -169,7 +208,7 @@ app.delete("/api/jamaah/:id", async (req, res) => {
     if (count && count > 0) {
       res.json({ success: true });
     } else {
-      res.status(404).json({ error: "Jamaah tidak ditemukan" });
+      res.status(404).json({ error: "Record tidak ditemukan" });
     }
   } catch (error: any) {
     res.status(500).json({ error: error.message });
