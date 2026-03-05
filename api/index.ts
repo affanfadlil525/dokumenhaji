@@ -5,7 +5,10 @@ import { createClient } from "@supabase/supabase-js";
 // Supabase Configuration
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+// Use Service Role Key if available to bypass RLS in the backend
+const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
 
 const app = express();
 const PORT = 3000;
