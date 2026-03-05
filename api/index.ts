@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 // Supabase Configuration
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || "";
 
 // Use Service Role Key if available to bypass RLS in the backend
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey);
@@ -17,6 +17,16 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // API Routes
+
+// Config check for debugging (masked)
+app.get("/api/config-check", (req, res) => {
+  res.json({
+    hasUrl: !!process.env.SUPABASE_URL || !!process.env.VITE_SUPABASE_URL,
+    hasAnonKey: !!process.env.SUPABASE_ANON_KEY || !!process.env.VITE_SUPABASE_ANON_KEY,
+    hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY || !!process.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+    env: process.env.NODE_ENV
+  });
+});
   
 // Get all jamaah with optional search
 app.get("/api/jamaah", async (req, res) => {
@@ -180,9 +190,10 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // Only listen if not in a serverless environment
-if (process.env.NODE_ENV !== "production" && !process.env.VERCEL && !process.env.NETLIFY) {
+const isServerless = process.env.VERCEL || process.env.NETLIFY;
+if (!isServerless) {
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
