@@ -107,6 +107,14 @@ export default function App() {
   const [showManualCrop, setShowManualCrop] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [backendConfig, setBackendConfig] = useState<{ hasServiceKey: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/config-check')
+      .then(res => res.json())
+      .then(data => setBackendConfig(data))
+      .catch(() => setBackendConfig({ hasServiceKey: false }));
+  }, []);
 
   const fetchRecords = useCallback(async (query: string = '') => {
     setIsLoading(true);
@@ -199,14 +207,14 @@ export default function App() {
     try {
       const ai = new GoogleGenAI({ apiKey });
       const reader = new FileReader();
-      reader.readAsDataURL(file);
-      
-      const base64Data = await new Promise<string>((resolve) => {
+      const base64DataPromise = new Promise<string>((resolve) => {
         reader.onload = () => {
           const base64 = (reader.result as string).split(',')[1];
           resolve(base64);
         };
       });
+      reader.readAsDataURL(file);
+      const base64Data = await base64DataPromise;
 
       const response = await ai.models.generateContent({
         model: GENAI_MODEL,
@@ -221,10 +229,11 @@ export default function App() {
             {
               text: `Analisis dokumen haji ini (${selectedType}):
               1. Ekstrak data teks berikut dalam format JSON: nomor, nomorPorsi, nama, namaAyah, alamat, phone, tanggalDaftar (format YYYY-MM-DD).
-              2. Temukan koordinat PAS FOTO (foto wajah) jamaah. Berikan koordinat [ymin, xmin, ymax, xmax] dalam skala 0-1000 dengan key "face_box".
-              3. Jika memungkinkan, kembalikan potongan wajah tersebut sebagai BAGIAN GAMBAR (inlineData).
+              2. TEMUKAN PAS FOTO (foto wajah) jamaah di dalam dokumen. Berikan koordinat kotak pembatas (bounding box) yang mengelilingi wajah tersebut.
+              3. Koordinat harus dalam format [ymin, xmin, ymax, xmax] dengan skala 0-1000. Gunakan key "face_box".
+              4. Jika memungkinkan, kembalikan potongan wajah tersebut sebagai BAGIAN GAMBAR (inlineData).
               
-              PENTING: Koordinat "face_box" HARUS sangat akurat mencakup area foto wajah saja. Jika ada lebih dari satu wajah, pilih yang paling utama.`,
+              PENTING: Pastikan koordinat "face_box" benar-benar pas di area foto wajah. Jika tidak ada foto wajah yang jelas, jangan sertakan key "face_box".`,
             },
           ],
         },
@@ -255,11 +264,18 @@ export default function App() {
 
       // If we have a face_box but no inlineData photo, perform client-side cropping
       if (!extractedPhotoUrl && extractedData.face_box && Array.isArray(extractedData.face_box)) {
+        console.log("Attempting client-side crop with box:", extractedData.face_box);
         try {
           extractedPhotoUrl = await cropImage(documentUrl, extractedData.face_box);
         } catch (cropErr) {
           console.error("Auto-crop failed:", cropErr);
         }
+      }
+
+      // Fallback: if still no photo, use the original document as a fallback so it's not empty
+      if (!extractedPhotoUrl) {
+        console.warn("No photo extracted, using document as fallback");
+        extractedPhotoUrl = `data:${file.type};base64,${base64Data}`; 
       }
 
       const result: Partial<HajiRecord> = {
@@ -366,7 +382,7 @@ export default function App() {
         <div className="mt-auto p-6 border-t border-black/5 space-y-4">
           <div className="bg-emerald-900/5 rounded-2xl p-4">
             <p className="text-[11px] font-semibold text-emerald-800 uppercase mb-1">Status Kantor</p>
-            <p className="text-xs text-emerald-700/70">Kemenag Kutai Barat Aktif</p>
+            <p className="text-xs text-emerald-700/70">Kemenhaj Kutai Barat Aktif</p>
           </div>
           
           <button 
@@ -397,6 +413,19 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+        {backendConfig && !backendConfig.hasServiceKey && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-amber-700 max-w-4xl mx-auto">
+            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm">Peringatan: Database Belum Terkonfigurasi Penuh</p>
+              <p className="text-xs opacity-90">
+                Environment variable <b>SUPABASE_SERVICE_ROLE_KEY</b> belum ditemukan di backend. 
+                Hal ini mungkin menyebabkan error "Row-Level Security" saat menyimpan data. 
+                Silakan tambahkan key tersebut di menu Secrets/Environment Variables.
+              </p>
+            </div>
+          </div>
+        )}
         {error && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
@@ -510,6 +539,12 @@ export default function App() {
                           alt="Foto Jamaah" 
                           className="max-w-full max-h-full object-contain rounded-2xl shadow-lg border-4 border-white" 
                           referrerPolicy="no-referrer" 
+                          onError={(e) => {
+                            // If the cropped image fails, show the full document as fallback
+                            if (scanResult.photoUrl !== scanResult.documentUrl) {
+                              (e.target as HTMLImageElement).src = scanResult.documentUrl || '';
+                            }
+                          }}
                         />
                       </div>
                       <div className="p-4 border-t border-black/5 bg-zinc-50 flex items-center justify-between">
@@ -794,7 +829,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Simple hardcoded credentials for demo
-    if (username === 'admin' && password === 'kemenagkubar') {
+    if (username === 'admin' && password === 'kemenhajkubar') {
       onLogin();
     } else {
       setError('Username atau Password salah!');
@@ -814,7 +849,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
               <Lock size={40} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight mb-2">Akses Administrator</h1>
-            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>Kemenag Kabupaten Kutai Barat</p>
+            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>Kemenhaj Kabupaten Kutai Barat</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
@@ -870,7 +905,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
         </div>
         
         <div className="bg-zinc-50 p-6 text-center border-t border-black/5">
-          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • Kemenag RI</p>
+          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • Kemenhaj Kab. Kutai Barat</p>
         </div>
       </motion.div>
     </div>
@@ -1123,13 +1158,20 @@ function RecordCard({ record, onDelete }: { record: HajiRecord, onDelete: (id: s
       animate={{ opacity: 1, x: 0 }}
       className="bg-white rounded-2xl p-4 md:p-6 border border-black/5 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row gap-4 md:gap-6 group"
     >
-      <div className="w-full sm:w-24 h-48 sm:h-24 rounded-xl overflow-hidden bg-zinc-100 flex-shrink-0 border border-black/5 flex items-center justify-center">
-        <img 
-          src={record.photoUrl} 
-          alt="Foto Jamaah" 
-          className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
-          referrerPolicy="no-referrer" 
-        />
+      <div className="w-full sm:w-24 h-48 sm:h-24 rounded-xl overflow-hidden bg-zinc-100 flex-shrink-0 border border-black/5 flex items-center justify-center relative">
+        {record.photoUrl ? (
+          <img 
+            src={record.photoUrl} 
+            alt="Foto Jamaah" 
+            className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" 
+            referrerPolicy="no-referrer" 
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "https://picsum.photos/seed/error/200/300";
+            }}
+          />
+        ) : (
+          <User className="text-black/20" size={32} />
+        )}
       </div>
       
       <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 items-center">
