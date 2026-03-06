@@ -126,23 +126,14 @@ export default function App() {
       const response = await fetch(`/api/jamaah?q=${encodeURIComponent(query)}`);
       if (!response.ok) throw new Error("Gagal mengambil data");
       const data = await response.json();
-      // Map snake_case from DB to camelCase for UI
+      
+      // The API already returns data in camelCase and flattened structure
+      // We just ensure ID is a string if needed
       const mappedData = data.map((item: any) => ({
-        id: item.id.toString(),
-        nomor: item.nomor,
-        nomorPorsi: item.nomor_porsi,
-        nama: item.nama,
-        namaAyah: item.nama_ayah,
-        alamat: item.alamat,
-        phone: item.phone || '',
-        tanggalDaftar: item.tanggal_daftar || (item.created_at ? item.created_at.split('T')[0] : ''),
-        photoUrl: item.foto,
-        timestamp: item.created_at ? new Date(item.created_at).getTime() : Date.now(),
-        // Default values for other fields
-        type: 'pendaftaran',
-        documentUrl: '',
-        mimeType: 'image/jpeg'
+        ...item,
+        id: item.id.toString()
       }));
+      
       setRecords(mappedData);
     } catch (err: any) {
       setError(err.message);
@@ -397,7 +388,7 @@ export default function App() {
         <div className="mt-auto p-6 border-t border-black/5 space-y-4">
           <div className="bg-emerald-900/5 rounded-2xl p-4">
             <p className="text-[11px] font-semibold text-emerald-800 uppercase mb-1">Status Kantor</p>
-            <p className="text-xs text-emerald-700/70">Kemenhaj Kutai Barat Aktif</p>
+            <p className="text-xs text-emerald-700/70">kemenhaj Kutai Barat Aktif</p>
           </div>
           
           <button 
@@ -864,7 +855,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
               <Lock size={40} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight mb-2">Akses Administrator</h1>
-            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>Kemenhaj Kabupaten Kutai Barat</p>
+            <p className="text-black/40 text-sm">Sistem Digitalisasi Dokumen Haji<br/>kemenhaj Kabupaten Kutai Barat</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
@@ -920,7 +911,7 @@ function LoginView({ onLogin }: { onLogin: () => void }) {
         </div>
         
         <div className="bg-zinc-50 p-6 text-center border-t border-black/5">
-          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • Kemenhaj Kab. Kutai Barat</p>
+          <p className="text-[10px] text-black/30 font-bold uppercase tracking-widest">Keamanan Terjamin • kemenhaj RI</p>
         </div>
       </motion.div>
     </div>
