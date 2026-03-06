@@ -69,20 +69,25 @@ app.get("/api/jamaah", async (req, res) => {
     if (error) throw error;
 
     // Map to camelCase and flatten for the frontend HajiRecord interface
-    const mappedData = data.map((doc: any) => ({
-      id: doc.id,
-      type: doc.type,
-      nomor: doc.nomor_dokumen,
-      nomorPorsi: doc.jamaah?.nomor_porsi,
-      nama: doc.jamaah?.nama,
-      namaAyah: doc.jamaah?.nama_ayah,
-      alamat: doc.jamaah?.alamat,
-      phone: doc.jamaah?.phone,
-      tanggalDaftar: doc.jamaah?.tanggal_daftar,
-      photoUrl: doc.jamaah?.foto,
-      documentUrl: doc.file_url,
-      timestamp: new Date(doc.created_at).getTime()
-    }));
+    const mappedData = data.map((doc: any) => {
+      // Handle potential array from join
+      const jamaah = Array.isArray(doc.jamaah) ? doc.jamaah[0] : doc.jamaah;
+      
+      return {
+        id: doc.id,
+        type: doc.type,
+        nomor: doc.nomor_dokumen,
+        nomorPorsi: jamaah?.nomor_porsi || "TIDAK TERDETEKSI",
+        nama: jamaah?.nama || "TIDAK TERDETEKSI",
+        namaAyah: jamaah?.nama_ayah || "TIDAK TERDETEKSI",
+        alamat: jamaah?.alamat || "",
+        phone: jamaah?.phone || "",
+        tanggalDaftar: jamaah?.tanggal_daftar || new Date().toISOString(),
+        photoUrl: jamaah?.foto || "",
+        documentUrl: doc.file_url,
+        timestamp: new Date(doc.created_at).getTime()
+      };
+    });
 
     res.json(mappedData);
   } catch (error: any) {
@@ -115,24 +120,77 @@ app.post("/api/jamaah", async (req, res) => {
   const { nomor, nomor_porsi, nama, nama_ayah, alamat, phone, tanggal_daftar, foto, type, document_url } = req.body;
   
   try {
-    // 1. Upsert Jamaah (based on nomor_porsi or nama+nama_ayah)
-    // We use upsert so if the jamaah already exists, we just get their ID
-    const { data: jamaahData, error: jamaahError } = await supabase
-      .from('jamaah')
-      .upsert({ 
-        nomor_porsi, 
-        nama, 
-        nama_ayah, 
-        alamat, 
-        phone, 
-        tanggal_daftar, 
-        foto,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'nomor_porsi' })
-      .select();
+    let jamaahId;
 
-    if (jamaahError) throw jamaahError;
-    const jamaahId = jamaahData[0].id;
+    // 1. Find or Create Jamaah
+    if (nomor_porsi && nomor_porsi !== "TIDAK TERDETEKSI") {
+      // Check if jamaah exists
+      const { data: existingJamaah, error: findError } = await supabase
+        .from('jamaah')
+        .select('id')
+        .eq('nomor_porsi', nomor_porsi)
+        .maybeSingle();
+
+      if (findError) console.error("Find error:", findError);
+
+      if (existingJamaah) {
+        // Update existing
+        const { data: updateData, error: updateError } = await supabase
+          .from('jamaah')
+          .update({ 
+            nama, 
+            nama_ayah, 
+            alamat, 
+            phone, 
+            tanggal_daftar, 
+            foto,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingJamaah.id)
+          .select();
+        
+        if (updateError) throw updateError;
+        jamaahId = updateData[0].id;
+      } else {
+        // Insert new
+        const { data: insertData, error: insertError } = await supabase
+          .from('jamaah')
+          .insert([{ 
+            nomor_porsi, 
+            nama, 
+            nama_ayah, 
+            alamat, 
+            phone, 
+            tanggal_daftar, 
+            foto 
+          }])
+          .select();
+        
+        if (insertError) throw insertError;
+        jamaahId = insertData[0].id;
+      }
+    }
+
+    // If no jamaahId yet (either nomor_porsi was invalid or not found)
+    if (!jamaahId) {
+      const { data: jamaahData, error: jamaahError } = await supabase
+        .from('jamaah')
+        .insert([
+          { 
+            nomor_porsi: (nomor_porsi && nomor_porsi !== "TIDAK TERDETEKSI") ? nomor_porsi : `TEMP-${Date.now()}`, 
+            nama, 
+            nama_ayah, 
+            alamat, 
+            phone, 
+            tanggal_daftar, 
+            foto 
+          }
+        ])
+        .select();
+
+      if (jamaahError) throw jamaahError;
+      jamaahId = jamaahData[0].id;
+    }
 
     // 2. Save to Dokumen table
     const { data: docData, error: docError } = await supabase
@@ -143,15 +201,12 @@ app.post("/api/jamaah", async (req, res) => {
           type,
           nomor_dokumen: nomor,
           file_url: document_url,
-          extracted_data: req.body // Store full extracted data for reference
+          extracted_data: req.body 
         }
       ])
       .select();
 
-    if (docError) {
-      console.warn("Gagal menyimpan ke tabel dokumen, pastikan tabel 'dokumen' sudah dibuat:", docError.message);
-      // We don't throw here to allow the jamaah save to succeed even if dokumen table is missing
-    }
+    if (docError) throw docError;
     
     res.status(201).json({ 
       id: jamaahId, 
