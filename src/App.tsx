@@ -1166,6 +1166,17 @@ function DataField({ icon: Icon, label, value, onChange, isArea }: {
 }
 
 function RecordCard({ record, onDelete }: { record: HajiRecord, onDelete: (id: string) => void }) {
+  const formatDate = (dateStr: string) => {
+    try {
+      if (!dateStr || dateStr === "TIDAK TERDETEKSI") return "-";
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "-";
+      return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch (e) {
+      return "-";
+    }
+  };
+
   return (
     <motion.div 
       layout
@@ -1174,7 +1185,7 @@ function RecordCard({ record, onDelete }: { record: HajiRecord, onDelete: (id: s
       className="bg-white rounded-2xl p-4 md:p-6 border border-black/5 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row gap-4 md:gap-6 group"
     >
       <div className="w-full sm:w-24 h-48 sm:h-24 rounded-xl overflow-hidden bg-zinc-100 flex-shrink-0 border border-black/5 flex items-center justify-center relative">
-        {record.photoUrl ? (
+        {record.photoUrl && (record.photoUrl.startsWith('data:image') || record.photoUrl.startsWith('blob:')) ? (
           <img 
             src={record.photoUrl} 
             alt="Foto Jamaah" 
@@ -1185,19 +1196,30 @@ function RecordCard({ record, onDelete }: { record: HajiRecord, onDelete: (id: s
             }}
           />
         ) : (
-          <User className="text-black/20" size={32} />
+          <div className="flex flex-col items-center justify-center text-black/20">
+            <User size={32} />
+            <span className="text-[8px] font-bold uppercase mt-1">No Photo</span>
+          </div>
         )}
+        <a 
+          href={record.documentUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold uppercase"
+        >
+          Lihat Dokumen
+        </a>
       </div>
       
       <div className="flex-1 grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 items-center">
         <div>
           <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest mb-0.5 md:mb-1">Jamaah</p>
-          <p className="font-bold text-sm truncate">{record.nama}</p>
-          <p className="text-xs text-black/40 italic">bin {record.namaAyah}</p>
+          <p className="font-bold text-sm truncate">{record.nama || "TIDAK TERDETEKSI"}</p>
+          <p className="text-xs text-black/40 italic">bin {record.namaAyah || "-"}</p>
         </div>
         <div>
           <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest mb-0.5 md:mb-1">Nomor Porsi</p>
-          <p className="font-mono text-sm font-semibold text-emerald-700">{record.nomorPorsi}</p>
+          <p className="font-mono text-sm font-semibold text-emerald-700">{record.nomorPorsi || "TIDAK TERDETEKSI"}</p>
         </div>
         <div>
           <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest mb-0.5 md:mb-1">Tipe Dokumen</p>
@@ -1210,12 +1232,8 @@ function RecordCard({ record, onDelete }: { record: HajiRecord, onDelete: (id: s
           </span>
         </div>
         <div className="hidden sm:block">
-          <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest mb-0.5 md:mb-1">Kontak</p>
-          <p className="text-xs font-medium">{record.phone || '-'}</p>
-        </div>
-        <div className="hidden sm:block">
           <p className="text-[10px] font-bold text-black/30 uppercase tracking-widest mb-0.5 md:mb-1">Tgl Daftar</p>
-          <p className="text-xs font-medium">{new Date(record.tanggalDaftar).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+          <p className="text-xs font-medium">{formatDate(record.tanggalDaftar)}</p>
         </div>
         <div className="flex items-center justify-end gap-3 col-span-2 lg:col-span-1">
           <div className="text-right mr-4 hidden lg:block">
